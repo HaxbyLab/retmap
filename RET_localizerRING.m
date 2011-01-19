@@ -66,8 +66,8 @@
     checks = ((1+sign(sin(at*tcycles)+eps) .* sign(sin(sqrt(x.^2+y.^2))))/2) * (hi_index-lo_index) + lo_index;
     circle = x.^2 + y.^2 <= xylim^2;
     checks = circle .* checks + bg_index * ~circle;
-    t(1) = SCREEN('MakeTexture', w, checks);
-    t(2) = SCREEN('MakeTexture', w, hi_index - checks); % reversed contrast
+    t(1) = Screen('MakeTexture', w, checks);
+    t(2) = Screen('MakeTexture', w, hi_index - checks); % reversed contrast
     circlemask = ones(xysize,xysize,4);
     circlemask(:,:,1:3)=128;
 %% MAKE PRESENTATION LISTS
