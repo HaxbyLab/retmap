@@ -13,18 +13,22 @@
     subName = input('Initials of subject? (default="tmp")  ','s');		% get subject's initials from user
     if length(subName) < 1; subName = 'tmp'; end;
 
-    CurRun = str2double(input('Run Number? ','s'));		
+    CurRun = str2double(input('Run Number? ','s'));
 
     listen = str2double(input('Listen for scanner [1=yes], 2=no? ','s'));
-    if isnan(listen); listen = 1; end;
+    if listen == '' || isnan(listen); listen = 1; end;
 
-    sequence = sprintf('%s%d_RET_RINGsequence.mat',subName,CurRun);	% name of data file to save relevant variables
+    sequence = sprintf('%s%d_RET_RINGsequence.mat',subName,CurRun); % name of data file to save relevant variables
     buttons =  sprintf('%s%d_RET_RINGbuttons.mat',subName,CurRun);
+    triggersfile = sprintf('%s%d_RET_RINGtriggers.mat',subName,CurRun);
+    listfile = sprintf('%s%d_RET_RINGlist.mat',subName,CurRun);
+
 %% DECLARE VARIABLES
     TotalPulseTime =[];
     TotalShowTime =[];
     data = [];
     buttonpress = [];
+    triggers = [];
     presentations = cell(97,5);
     ring_list = [];
     RunOrder = zeros(97,2);
@@ -41,14 +45,6 @@
     num_flick = 1;
     ScreenNum = max(Screen('Screens'));
      
-%% SAVE LIST TO FILE - for double checking the sequence of each run
-    if listen == 1  
-        listfile = sprintf('%s%d_RET_RINGlist.mat',subName,CurRun);
-        cd './data'
-        save(listfile,'RunOrder'); %saves the list 
-        cd .. 
-    else
-    end
     
 %% MAKE CHECKERBOARDS
     HideCursor; %hides the cursor
@@ -128,7 +124,7 @@
     end
 %% PRE-PRESENTATION
     if listen == 1
-        [P4, openerror] = IOPort('OpenSerialPort', 'COM3','BaudRate=115200'); %opens port for receiving scanner pulse
+        [P4, openerror] = IOPort('OpenSerialPort', '/dev/ttyUSB0','BaudRate=115200'); %opens port for receiving scanner pulse
         IOPort('Flush', P4); %flush event buffer
     else
     end
@@ -136,15 +132,19 @@
     temp_data=1;
     bigrect = [x0-bigsize, y0-bigsize, x0+bigsize,y0+bigsize];
     smallrect = [x0-smallsize, y0-smallsize, x0+smallsize,y0+smallsize];
-
+    disp 'Getting to presentation loop';
+    disp 'Listen ', listen;
 %% IMAGE PRESENTATION
     while DynScan<=(length(RunOrder)-1)
         if listen == 1;
             [pulse,temptime,readerror] = IOPort('read',P4,1,1);
+            if isempty(pulse); continue; end;
+            printf("Got %c at %.2f\n", pulse, temptime)
         else 
             pulse = 53;
         end 
         if pulse == 53; %if a pulse has been received from the scanner
+            triggers = [triggers; temptime];
             if RunOrder(DynScan,1) == 0; % THIS IS FOR THE BLANK
                 Screen('FillRect',w,[127 127 127]); %fills the whole screen - changes background color%
                 Screen('FillRect',w,rectcolor(RunOrder(DynScan,2)+1,:),bigrect);
@@ -194,6 +194,10 @@
     cd './data';
     save(sequence,'presentations'); %saves the sequence data
     save(buttons, 'buttonpress'); %saves the buttonpresses
+    save(listfile,'RunOrder'); %saves the list
+    save(triggersfile,'triggers'); %saves the list
+
+
     Screen('CloseAll');
     IOPort('Closeall');
     cd ..

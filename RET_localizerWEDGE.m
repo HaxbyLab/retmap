@@ -19,11 +19,15 @@
 
     sequence = sprintf('%s%d_RET_WEDGEsequence.mat',subName,CurRun);	% name of data file to save relevant variables
     buttons =  sprintf('%s%d_RET_WEDGEbuttons.mat',subName,CurRun);
+    triggersfile =  sprintf('%s%d_RET_WEDGEtriggers.mat',subName,CurRun);
+    listfile = sprintf('%s%d_RET_WEDGElist.mat',subName,CurRun);
+
 %% DECLARE VARIABLES
     TotalPulseTime =[];
     TotalShowTime =[];
     data = [];
     buttonpress = [];
+    triggers = [];
     presentations = cell(97,5);
     ang_list = [];
     RunOrder = zeros(97,2);
@@ -67,15 +71,7 @@
             end
         end
     end
-    
-%% SAVE LIST TO FILE - for double checking the sequence of each run
-    if listen == 1  
-        listfile = sprintf('%s%d_RET_WEDGElist.mat',subName,CurRun);
-        cd './data'
-        save(listfile,'RunOrder'); %saves the list 
-        cd .. 
-    else
-    end
+   
     
 %% SUBJECT PROMPT
     HideCursor; %hides the cursor
@@ -109,11 +105,11 @@
     sign(sin(sqrt(x.^2+y.^2))))/2) * (hi_index-lo_index) + lo_index;
     circle = x.^2 + y.^2 <= xylim^2;
     checks = circle .* checks + bg_index * ~circle;
-    t(1) = SCREEN('MakeTexture', w, checks);
-    t(2) = SCREEN('MakeTexture', w, hi_index - checks); % reversed contrast
+    t(1) = Screen('MakeTexture', w, checks);
+    t(2) = Screen('MakeTexture', w, hi_index - checks); % reversed contrast
 %% PRE-PRESENTATION
     if listen == 1
-        [P4, openerror] = IOPort('OpenSerialPort', 'COM3','BaudRate=115200'); %opens port for receiving scanner pulse
+        [P4, openerror] = IOPort('OpenSerialPort', '/dev/ttyUSB0','BaudRate=115200'); %opens port for receiving scanner pulse
         IOPort('Flush', P4); %flush event buffer
     else
     end
@@ -121,15 +117,20 @@
     temp_data=1;
     bigrect = [x0-bigsize, y0-bigsize, x0+bigsize,y0+bigsize];
     smallrect = [x0-smallsize, y0-smallsize, x0+smallsize,y0+smallsize];
-      
+    disp 'Getting to presentation loop';
+    disp 'Listen ', listen;
+
 % %% IMAGE PRESENTATION
     while DynScan<=(length(RunOrder)-1)
         if listen == 1;
             [pulse,temptime,readerror] = IOPort('read',P4,1,1);
+            if isempty(pulse); continue; end;
+            printf("Got %c at %.2f\n", pulse, temptime)
         else 
             pulse = 53;
         end 
         if pulse == 53; %if a pulse has been received from the scanner
+            triggers = [ triggers; temptime ];
             if RunOrder(DynScan,1) == 0; % THIS IS FOR THE BLANK
                 Screen('FillRect',w,[127 127 127]); %fills the whole screen - changes background color%
                 Screen('FillRect',w,rectcolor(RunOrder(DynScan,2)+1,:),bigrect);
@@ -148,7 +149,7 @@
                 DynScan = DynScan + 1;
             else  % PRESENT IMAGE
                 while num_flick <=(2/flick_dur)-1 % 2 seconds of flicker 
-                    SCREEN('DrawTexture', w, t(flick)); 
+                    Screen('DrawTexture', w, t(flick)); 
                     theta1 = deg2rad(RunOrder(DynScan,1));
                     theta2 = deg2rad((180-(360/tcycles)+RunOrder(DynScan,1))); %offset
                     st1 = sin(theta1); ct1 = cos(theta1);
@@ -186,6 +187,8 @@
 cd './data';
 save(sequence,'presentations'); %saves the sequence data
 save(buttons, 'buttonpress'); %saves the buttonpresses
+save(triggersfile,'triggers'); %saves the list
+
 Screen('CloseAll');
 IOPort('Closeall');
 cd ..
