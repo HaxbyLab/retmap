@@ -139,9 +139,10 @@
         if listen == 1;
             [pulse,temptime,readerror] = IOPort('read',P4,1,1);
             if isempty(pulse); continue; end;
-            printf("Got %c at %.2f\n", pulse, temptime)
+            printf('Got %c at %.2f\n', pulse, temptime)
         else 
             pulse = 53;
+            temptime = GetSecs;
         end 
         if pulse == 53; %if a pulse has been received from the scanner
             triggers = [triggers; temptime];
