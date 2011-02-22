@@ -7,7 +7,7 @@
     clear mex;
     IOPort('Closeall');
     AssertOpenGL;  %Break if installed Psychtoolbox is not based on OpenGL or Screen() is not working properly.
-    Screen('Preference','SkipSyncTests',0); %skip hardware test % yoh: why?
+    Screen('Preference','SkipSyncTests',1); %skip hardware test
     
 %% GET SUBJECT INFORMATION
     subName = input('Initials of subject? (default="tmp")  ','s');		% get subject's initials from user
