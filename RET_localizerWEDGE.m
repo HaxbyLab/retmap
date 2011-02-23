@@ -125,13 +125,15 @@
     sprintf('Ready to present. listen:%d\n', listen)
 
 % %% IMAGE PRESENTATION
-    while DynScan<=(length(RunOrder)-1)
+    NRuns = length(RunOrder)-1
+    while DynScan <= NRuns
         if listen == 1;
             tprev = GetSecs;
             pulse = [];
             while isempty(pulse)
                 [pulse,temptime,readerror] = IOPort('read',P4,0,1);
             end
+            if length(triggers) == 0; t0 = temptime; end;
             if DEBUG_PRINTOUTS;
                 tnow = GetSecs;
                 navail = IOPort('BytesAvailable', P4);
@@ -139,11 +141,7 @@
                         DynScan, pulse, temptime, tnow, tnow - tprev, navail);
                 if length(triggers)>0;
                     fprintf(' dt=%.5f', temptime-triggers(end));
-                    if pulse == 53
-                        fprintf(' delay=%.5f', tnow-t0-(DynScan-1)*TR) ;
-                    end;
-                else
-                    t0=temptime;
+                    if pulse == 53; fprintf(' delay=%.5f', tnow-t0-(DynScan-1)*TR); end;
                 end
                 fprintf('\n');
             end;
@@ -165,7 +163,7 @@
                 Screen('FillRect',w,[255 255 0],smallrect);
                 Screen('Flip',w);
                 presentations(DynScan,:)= {CurRun,DynScan,RunOrder(DynScan,1),RunOrder(DynScan,2),ShowTime};
-                if listen ~= 1
+                if listen ~= 1 || DynScan == NRuns % So if is the last trial
                     WaitSecs(1.75); % ONLY FOR DEBUGGING - TO MIMIC SCANNER BEHAVIOR
                 end
                 DynScan = DynScan + 1;
@@ -211,6 +209,7 @@
         end
     end
 
+tend = GetSecs;
 %% CLOSING COMMANDS
 cd './data';
 save(sequence,'presentations'); %saves the sequence data
@@ -220,3 +219,7 @@ save(triggersfile,'triggers'); %saves the list
 Screen('CloseAll');
 IOPort('CloseAll');
 cd ..
+
+dt = triggers(2:end)-triggers(1:end-1) - 2;
+fprintf('Post-analysis of triggers delays. Total runtime=%.3f Min=%.3f Max=%.3f\n',
+		tend-t0, min(dt), max(dt));
