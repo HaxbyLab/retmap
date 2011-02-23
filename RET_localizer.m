@@ -26,10 +26,10 @@ function RET_localizer(subName, CurRun, listen)
 	stim = {'RING' 'WEDGE'}{mod(ceil(CurRun/2), 2)+1}
 
     % name of data files to save relevant variables
-    sequence = sprintf('%s%d_RET_sequence.mat', subName, CurRun);
-    buttons =  sprintf('%s%d_RET_buttons.mat',subName,CurRun);
-    triggersfile =  sprintf('%s%d_RET_triggers.mat',subName,CurRun);
-    listfile = sprintf('%s%d_RET_list.mat',subName,CurRun);
+    sequence = sprintf('%s_%d_RET_sequence.mat', subName, CurRun);
+    buttons =  sprintf('%s_%d_RET_buttons.mat',subName,CurRun);
+    triggersfile =  sprintf('%s_%d_RET_triggers.mat',subName,CurRun);
+    listfile = sprintf('%s_%d_RET_list.mat',subName,CurRun);
 
 %% DECLARE VARIABLES
     DEBUG_PRINTOUTS = 1;
@@ -39,7 +39,7 @@ function RET_localizer(subName, CurRun, listen)
     buttonpress = [];
     triggers = [];
     presentations = cell(97,5);
-    ang_list = [];
+    param_list = [];   % list of parameters -- angles or rings
     RunOrder = zeros(97,2);
     repetitions = 5;  % number of circulations
     bigsize = 6;
@@ -51,23 +51,65 @@ function RET_localizer(subName, CurRun, listen)
     flicker_freq = 4; % full cycle flicker frequency (Hz)
     flick_dur = 1/flicker_freq/2;
     flick = 1;
-    num_flick = 1;
     TR = 2.;
     ScreenNum = max(Screen('Screens'));
 
-%% MAKE PRESENTATIONS LISTS
-    ang = (360/tcycles):(360/tcycles):360;
-    for z=1:repetitions
-        ang_list = [ang_list, ang];
+%% Initial Screen setup
+    HideCursor; %hides the cursor
+    [w,rect]=Screen('OpenWindow',ScreenNum,[127 127 127], [], [], [], [], kPsychNeedFastOffscreenWindows); %kPsychNeedFastBackingStore
+    Priority(2); %sets the priority to the maximum possible
+    Screen(w,'BlendFunction',GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    hi_index=255; % black color
+    lo_index=0; % white color
+    bg_index =128; %background
+    xysize = sqrt(power(rect(3),2)+power(rect(4),2)); % wedge diameter
+    s = xysize/sqrt(2); % size used for mask
+    xylim = 2*pi*rcycles;
+    [x,y] = meshgrid(-xylim:2*xylim/(xysize-1):xylim, -xylim:2*xylim/(xysize-1):xylim);
+    at = atan2(y,x);
+    checks = ((1+sign(sin(at*tcycles)+eps) .* sign(sin(sqrt(x.^2+y.^2))))/2) * (hi_index-lo_index) + lo_index;
+    circle = x.^2 + y.^2 <= xylim^2;
+    checks = circle .* checks + bg_index * ~circle;
+    t(1) = Screen('MakeTexture', w, checks);
+    t(2) = Screen('MakeTexture', w, hi_index - checks); % reversed contrast
+
+    %% MAKE PRESENTATION LISTS
+    if strcmp(stim, 'RING')
+        circlemask = ones(xysize,xysize,4);
+        circlemask(:,:,1:3)=128;
+        sizes = 0:(xylim/16):xylim-(xylim/16);
+        for s = 1:length(sizes)
+            smallcircle = x.^2 + y.^2 <= (sizes(s)^2);
+            smallcircle = smallcircle*255;
+            if s == length(sizes)
+                maskcircle = x.^2 + y.^2 <= 100000;
+            else
+                maskcircle = x.^2 + y.^2 <= (sizes(s+1)^2);
+            end
+            maskcircle = ~maskcircle*255;
+            circlemask(:,:,4) = smallcircle+maskcircle;
+            masktextures(s)=Screen('MakeTexture', w, circlemask);
+        end
+
+	    %% TODO: yoh: Why the same masktextures added multiple times???
+        for z=1:repetitions
+            param_list = [param_list, masktextures];
+        end
+    else
+        ang = (360/tcycles):(360/tcycles):360;
+        for z=1:repetitions
+            param_list = [param_list, ang];
+        end
     end
 
     if mod(CurRun,2)~=0; % odd run, wedge counterclockwise
-        temp = ang_list(1:length(ang_list));
+        temp = param_list(1:length(param_list));
     else % even run, wedge clockwise
-        temp = ang_list(length(ang_list):-1:1);
+        temp = param_list(length(param_list):-1:1);
     end
 
-    RunOrder(9:length(ang_list)+8,1) = temp;
+    RunOrder(9:length(param_list)+8,1) = temp;
 
     steps = [-1, 0];
 
@@ -84,41 +126,22 @@ function RET_localizer(subName, CurRun, listen)
     end
 
 
-%% SUBJECT PROMPT
-    HideCursor; %hides the cursor
-    [w,rect]=Screen('OpenWindow',ScreenNum,[127 127 127], [], [], [], [], kPsychNeedFastOffscreenWindows); %kPsychNeedFastBackingStore
-    Priority(2); %sets the priority to the maximum possible
+    %% SUBJECT PROMPT
     x0 = rect(3)/2; % screen center
     y0 = rect(4)/2;
     prompt = imread('RETprompt.png');
     [ysize,xsize,ncolors]=size(prompt);
     xsize = (rect(3)/6)*(xsize/ysize);
     ysize = rect(3)/6;
-    t=Screen('MakeTexture',w,prompt); %converting image matrix to a texture
+    pt=Screen('MakeTexture',w,prompt); %converting image matrix to a texture
     destrect = [x0-xsize, y0-ysize, x0+xsize, y0+ysize];
-    Screen('DrawTexture',w,t,[],destrect);
+    Screen('DrawTexture',w,pt,[],destrect);
     Screen('Flip',w, [], 1);
     if listen ~= 1
         WaitSecs(1); %% ONLY FOR DEBUGGING
-    else
     end
 
-%% MAKE CHECKERBOARDS
-    hi_index=255; % black color
-    lo_index=0; % white color
-    bg_index =128; %background
-    xysize = sqrt(power(rect(3),2)+power(rect(4),2)); % wedge diameter
-    s = xysize/sqrt(2); % size used for mask
-    xylim = 2*pi*rcycles;
-    [x,y] = meshgrid(-xylim:2*xylim/(xysize-1):xylim, -xylim:2*xylim/(xysize-1):xylim);
-    at = atan2(y,x);
-    checks = ((1+sign(sin(at*tcycles)+eps) .* ...
-    sign(sin(sqrt(x.^2+y.^2))))/2) * (hi_index-lo_index) + lo_index;
-    circle = x.^2 + y.^2 <= xylim^2;
-    checks = circle .* checks + bg_index * ~circle;
-    t(1) = Screen('MakeTexture', w, checks);
-    t(2) = Screen('MakeTexture', w, hi_index - checks); % reversed contrast
-%% PRE-PRESENTATION
+    %% PRE-PRESENTATION
     if listen == 1
         IOPort('Verbosity', 10);
         [P4, openerror] = IOPort('OpenSerialPort', '/dev/ttyUSB0','BaudRate=115200'); %opens port for receiving scanner pulse
@@ -181,17 +204,23 @@ function RET_localizer(subName, CurRun, listen)
                 end
                 DynScan = DynScan + 1;
             else  % PRESENT IMAGE
-
+                num_flick = 1;
                 while num_flick <=(TR/flick_dur) % 2 seconds of flicker
                     Screen('DrawTexture', w, t(flick));
-                    theta1 = deg2rad(RunOrder(DynScan,1));
-                    theta2 = deg2rad((180-(360/tcycles)+RunOrder(DynScan,1))); %offset
-                    st1 = sin(theta1); ct1 = cos(theta1);
-                    st2 = sin(theta2); ct2 = cos(theta2);
-                    xy1 = s * [0,0; -st1,-ct1; -st1-ct1,st1-ct1; st1-ct1,st1+ct1; -st2,-ct2] + ones(5,1) * [x0 y0];
-                    xy2 = s * [0,0; st1,ct1; -st2-ct2,st2-ct2; st2-ct2,st2+ct2; st2,ct2] + ones(5,1) * [x0 y0];
-                    Screen('FillPoly', w, bg_index, xy1);
-                    Screen('FillPoly', w, bg_index, xy2);
+                    if strcmp(stim, 'WEDGE')
+                        % TODO : pregenerate textures
+                        theta1 = deg2rad(RunOrder(DynScan,1));
+                        theta2 = deg2rad((180-(360/tcycles)+RunOrder(DynScan,1))); %offset
+                        st1 = sin(theta1); ct1 = cos(theta1);
+                        st2 = sin(theta2); ct2 = cos(theta2);
+                        xy1 = s * [0,0; -st1,-ct1; -st1-ct1,st1-ct1; st1-ct1,st1+ct1; -st2,-ct2] + ones(5,1) * [x0 y0];
+                        xy2 = s * [0,0; st1,ct1; -st2-ct2,st2-ct2; st2-ct2,st2+ct2; st2,ct2] + ones(5,1) * [x0 y0];
+                        Screen('FillPoly', w, bg_index, xy1);
+                        Screen('FillPoly', w, bg_index, xy2);
+                    else % RING
+                        Screen('DrawTexture', w, RunOrder(DynScan,1));
+                    end
+                    %% Distractor
                     Screen('FillRect',w,rectcolor(RunOrder(DynScan,2)+1,:),bigrect);
                     Screen('FillRect',w,[255 255 0],smallrect);
                     if num_flick == 1; ShowTime = GetSecs;
@@ -204,22 +233,19 @@ function RET_localizer(subName, CurRun, listen)
                     sleep_dur = temptime + num_flick*flick_dur - tnow;
                     flick = 3-flick;
                     if num_flick < (TR/flick_dur)
-					   % Skip waiting on the last one -- just wait on the trigger above
+                       % Skip waiting on the last one -- just wait on the trigger above
                        WaitSecs(sleep_dur); % 8 hz flicker
                     end
                     num_flick = num_flick + 1;
                 end
                 presentations(DynScan,:)= {CurRun,DynScan,RunOrder(DynScan,1),RunOrder(DynScan,2),ShowTime};
                 DynScan = DynScan + 1;
-                num_flick = 1;
             end
             TotalShowTime = [TotalShowTime; ShowTime];
             ShowTime = [];
-            pulse = [];
         else
-            if ~isempty(pulse); buttonpress = [buttonpress; pulse, temptime]; end% add to buttonpresses
-                pulse = [];
-        end
+            buttonpress = [buttonpress; pulse, temptime]; % add to buttonpresses
+         end
     end
 
     tend = GetSecs;
@@ -236,4 +262,7 @@ function RET_localizer(subName, CurRun, listen)
     dt = triggers(2:end)-triggers(1:end-1) - 2;
     fprintf('Post-analysis of triggers delays. Total runtime=%.3f Min=%.3f Max=%.3f\n',
     		tend-t0, min(dt), max(dt));
+    fprintf('Collected %d responses from the subject for %d events',
+			length(buttonpress),
+			sum([presentations{:, 4}] == 2));
 end
