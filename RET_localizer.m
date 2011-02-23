@@ -1,6 +1,7 @@
 function RET_localizer(subName, CurRun, listen)
-%% RET LOCALIZER WITH WEDGE TEST
+%% RET LOCALIZER WITH WEDGE or RINGs (interleaved WWRRWWRRWW)
 % PK: Feb. 23, 2010
+% YH: sometimes
 % 96 TRs (2 sec) = 3 min, 12 secs
 %% STARTUP COMMANDS
     close all;
@@ -21,11 +22,14 @@ function RET_localizer(subName, CurRun, listen)
     end
     if isnan(listen); listen = 1; end;
 
+	%% Deduce stimuli WEDGE vs RING
+	stim = {'RING' 'WEDGE'}{mod(ceil(CurRun/2), 2)+1}
+
     % name of data files to save relevant variables
-    sequence = sprintf('%s%d_RET_WEDGEsequence.mat', subName, CurRun);
-    buttons =  sprintf('%s%d_RET_WEDGEbuttons.mat',subName,CurRun);
-    triggersfile =  sprintf('%s%d_RET_WEDGEtriggers.mat',subName,CurRun);
-    listfile = sprintf('%s%d_RET_WEDGElist.mat',subName,CurRun);
+    sequence = sprintf('%s%d_RET_sequence.mat', subName, CurRun);
+    buttons =  sprintf('%s%d_RET_buttons.mat',subName,CurRun);
+    triggersfile =  sprintf('%s%d_RET_triggers.mat',subName,CurRun);
+    listfile = sprintf('%s%d_RET_list.mat',subName,CurRun);
 
 %% DECLARE VARIABLES
     DEBUG_PRINTOUTS = 1;
@@ -130,7 +134,8 @@ function RET_localizer(subName, CurRun, listen)
     Screen('TextStyle', w, 0);
     Screen('DrawText', w, 'Waiting for scanner', 400, 520, 80);
     Screen('Flip', w, [], 2, 1);
-    sprintf('Ready to present subject %s run %d. listen:%d\n', subName, CurRun, listen)
+    sprintf('Ready to present subject %s run %d of %s. listen:%d\n',
+			subName, CurRun, stim, listen)
 
 % %% IMAGE PRESENTATION
     NRuns = length(RunOrder)-1
