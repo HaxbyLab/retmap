@@ -12,19 +12,21 @@
     subName = input('Initials of subject? (default="tmp")  ','s');		% get subject's initials from user
     if length(subName) < 1; subName = 'tmp'; end;
 
-    CurRun = str2double(input('Run Number? ','s'));		
-    
+    CurRun = str2double(input('Run Number? ','s'));
+
     listen = str2double(input('Listen for scanner [1=yes], 2=no? ','s'));
     if isnan(listen); listen = 1; end;
 
-    sequence = sprintf('%s%d_RET_WEDGEsequence.mat',subName,CurRun);	% name of data file to save relevant variables
+    % name of data files to save relevant variables
+    sequence = sprintf('%s%d_RET_WEDGEsequence.mat', subName, CurRun);
     buttons =  sprintf('%s%d_RET_WEDGEbuttons.mat',subName,CurRun);
     triggersfile =  sprintf('%s%d_RET_WEDGEtriggers.mat',subName,CurRun);
     listfile = sprintf('%s%d_RET_WEDGElist.mat',subName,CurRun);
 
 %% DECLARE VARIABLES
-    TotalPulseTime =[];
-    TotalShowTime =[];
+    DEBUG_PRINTOUTS = 1;
+    TotalPulseTime = [];
+    TotalShowTime = [];
     data = [];
     buttonpress = [];
     triggers = [];
@@ -33,7 +35,7 @@
     RunOrder = zeros(97,2);
     repetitions = 5;  % number of circulations
     bigsize = 6;
-    smallsize = 3; 
+    smallsize = 3;
     rectcolor = [0 255 0; 255 0 0; 0 0 255];
     %all the below related to checkerboard pattern
     rcycles = 8; % number of white/black circle pairs
@@ -66,14 +68,14 @@
             if mod(z,2) == 0;
                 tempstep = steps(randperm(2)); % pick a random step
                 RunOrder(z+tempstep(1),2) = round(rand)+1; % make that position 1 or 2
-                if tempstep(1) ~= 0; RunOrder(z,2) = 0; else end;
-            else 
+                if tempstep(1) ~= 0; RunOrder(z,2) = 0; end;
+            else
                 RunOrder(z,2) = 0;
             end
         end
     end
-   
-    
+
+
 %% SUBJECT PROMPT
     HideCursor; %hides the cursor
     [w,rect]=Screen('OpenWindow',ScreenNum,[127 127 127], [], [], [], [], kPsychNeedFastOffscreenWindows); %kPsychNeedFastBackingStore
@@ -92,7 +94,7 @@
         WaitSecs(1); %% ONLY FOR DEBUGGING
     else
     end
-    
+
 %% MAKE CHECKERBOARDS
     hi_index=255; % black color
     lo_index=0; % white color
@@ -119,27 +121,37 @@
     temp_data=1;
     bigrect = [x0-bigsize, y0-bigsize, x0+bigsize,y0+bigsize];
     smallrect = [x0-smallsize, y0-smallsize, x0+smallsize,y0+smallsize];
-    disp 'Getting to presentation loop';
-    disp 'Listen ', listen;
+
+    sprintf('Ready to present. listen:%d\n', listen)
 
 % %% IMAGE PRESENTATION
     while DynScan<=(length(RunOrder)-1)
         if listen == 1;
-            [pulse,temptime,readerror] = IOPort('read',P4,0,1);
-            if isempty(pulse); continue; end;
-            navail = IOPort('BytesAvailable', P4);
-            printf('%3d Got %c at %.5f. / %.5f avail: %d', DynScan, pulse, temptime, GetSecs, navail)
-            if length(triggers)>0;
-                printf(' dt=%.5f', temptime-triggers(end));
-                if pulse == 53; printf(' delay=%.5f', temptime-t0-(DynScan-1)*TR); end;
-            else
-                t0=temptime;
+            tprev = GetSecs;
+            pulse = [];
+            while isempty(pulse)
+                [pulse,temptime,readerror] = IOPort('read',P4,0,1);
             end
-            printf('\n')
+            if DEBUG_PRINTOUTS;
+                tnow = GetSecs;
+                navail = IOPort('BytesAvailable', P4);
+                fprintf('%3d Got %c at %.5f. / %.5f waited %.5f avail: %d',
+                        DynScan, pulse, temptime, tnow, tnow - tprev, navail);
+                if length(triggers)>0;
+                    fprintf(' dt=%.5f', temptime-triggers(end));
+                    if pulse == 53
+                        fprintf(' delay=%.5f', tnow-t0-(DynScan-1)*TR) ;
+                    end;
+                else
+                    t0=temptime;
+                end
+                fprintf('\n');
+            end;
         else
             pulse = 53;
             temptime = GetSecs;
         end
+        if pulse == 'q'; break; end; % quit if 'q'
         if pulse == 53; %if a pulse has been received from the scanner
             triggers = [ triggers; temptime ];
             if RunOrder(DynScan,1) == 0; % THIS IS FOR THE BLANK
@@ -151,15 +163,15 @@
                 WaitSecs(.240); %after 240 ms
                 Screen('FillRect',w,rectcolor(1,:),bigrect);
                 Screen('FillRect',w,[255 255 0],smallrect);
-                Screen('Flip',w,[],2);
-                presentations(DynScan,:)= {CurRun,DynScan,RunOrder(DynScan,1),RunOrder(DynScan,2),ShowTime}; 
+                Screen('Flip',w);
+                presentations(DynScan,:)= {CurRun,DynScan,RunOrder(DynScan,1),RunOrder(DynScan,2),ShowTime};
                 if listen ~= 1
                     WaitSecs(1.75); % ONLY FOR DEBUGGING - TO MIMIC SCANNER BEHAVIOR
-                    else
                 end
                 DynScan = DynScan + 1;
             else  % PRESENT IMAGE
-                while num_flick <=(2/flick_dur)-1 % 2 seconds of flicker
+
+                while num_flick <=(TR/flick_dur) % 2 seconds of flicker
                     Screen('DrawTexture', w, t(flick));
                     theta1 = deg2rad(RunOrder(DynScan,1));
                     theta2 = deg2rad((180-(360/tcycles)+RunOrder(DynScan,1))); %offset
@@ -177,11 +189,16 @@
                              Screen('FillRect',w,[255 255 0],smallrect);
                     end
                     Screen('Flip',w,[], 2, 0); %usually 2 (what for?), 1 for do not sync
-                    WaitSecs(flick_dur); % 8 hz flicker
+                    tnow = GetSecs;
+                    sleep_dur = temptime + num_flick*flick_dur - tnow;
                     flick = 3-flick;
-                    presentations(DynScan,:)= {CurRun,DynScan,RunOrder(DynScan,1),RunOrder(DynScan,2),ShowTime}; 
+                    if num_flick < (TR/flick_dur)
+					   % Skip waiting on the last one -- just wait on the trigger above
+                       WaitSecs(sleep_dur); % 8 hz flicker
+                    end
                     num_flick = num_flick + 1;
                 end
+                presentations(DynScan,:)= {CurRun,DynScan,RunOrder(DynScan,1),RunOrder(DynScan,2),ShowTime};
                 DynScan = DynScan + 1;
                 num_flick = 1;
             end
@@ -189,11 +206,11 @@
             ShowTime = [];
             pulse = [];
         else
-            if ~isempty(pulse); buttonpress = [buttonpress; pulse, temptime]; else end% add to buttonpresses
+            if ~isempty(pulse); buttonpress = [buttonpress; pulse, temptime]; end% add to buttonpresses
                 pulse = [];
         end
     end
-     
+
 %% CLOSING COMMANDS
 cd './data';
 save(sequence,'presentations'); %saves the sequence data
