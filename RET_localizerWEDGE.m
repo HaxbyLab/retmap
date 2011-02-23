@@ -5,7 +5,7 @@
     close all;
     clear all;
     clear mex;
-    IOPort('Closeall');
+    IOPort('CloseAll');
     AssertOpenGL;  %Break if installed Psychtoolbox is not based on OpenGL or Screen() is not working properly.
     Screen('Preference','SkipSyncTests',1); %skip hardware test
 %% GET SUBJECT INFORMATION
@@ -42,6 +42,7 @@
     flick_dur = 1/flicker_freq/2;
     flick = 1;
     num_flick = 1;
+    TR = 2.;
     ScreenNum = max(Screen('Screens'));
 
 %% MAKE PRESENTATIONS LISTS
@@ -109,6 +110,7 @@
     t(2) = Screen('MakeTexture', w, hi_index - checks); % reversed contrast
 %% PRE-PRESENTATION
     if listen == 1
+        IOPort('Verbosity', 10);
         [P4, openerror] = IOPort('OpenSerialPort', '/dev/ttyUSB0','BaudRate=115200'); %opens port for receiving scanner pulse
         IOPort('Flush', P4); %flush event buffer
     else
@@ -123,13 +125,21 @@
 % %% IMAGE PRESENTATION
     while DynScan<=(length(RunOrder)-1)
         if listen == 1;
-            [pulse,temptime,readerror] = IOPort('read',P4,1,1);
+            [pulse,temptime,readerror] = IOPort('read',P4,0,1);
             if isempty(pulse); continue; end;
-            printf('Got %c at %.2f\n', pulse, temptime)
-        else 
+            navail = IOPort('BytesAvailable', P4);
+            printf('%3d Got %c at %.5f. / %.5f avail: %d', DynScan, pulse, temptime, GetSecs, navail)
+            if length(triggers)>0;
+                printf(' dt=%.5f', temptime-triggers(end));
+                if pulse == 53; printf(' delay=%.5f', temptime-t0-(DynScan-1)*TR); end;
+            else
+                t0=temptime;
+            end
+            printf('\n')
+        else
             pulse = 53;
             temptime = GetSecs;
-        end 
+        end
         if pulse == 53; %if a pulse has been received from the scanner
             triggers = [ triggers; temptime ];
             if RunOrder(DynScan,1) == 0; % THIS IS FOR THE BLANK
@@ -149,8 +159,8 @@
                 end
                 DynScan = DynScan + 1;
             else  % PRESENT IMAGE
-                while num_flick <=(2/flick_dur)-1 % 2 seconds of flicker 
-                    Screen('DrawTexture', w, t(flick)); 
+                while num_flick <=(2/flick_dur)-1 % 2 seconds of flicker
+                    Screen('DrawTexture', w, t(flick));
                     theta1 = deg2rad(RunOrder(DynScan,1));
                     theta2 = deg2rad((180-(360/tcycles)+RunOrder(DynScan,1))); %offset
                     st1 = sin(theta1); ct1 = cos(theta1);
@@ -161,12 +171,12 @@
                     Screen('FillPoly', w, bg_index, xy2);
                     Screen('FillRect',w,rectcolor(RunOrder(DynScan,2)+1,:),bigrect);
                     Screen('FillRect',w,[255 255 0],smallrect);
-                    if num_flick == 1; ShowTime = GetSecs; 
+                    if num_flick == 1; ShowTime = GetSecs;
                     elseif num_flick > 3; % after 240 ms
                              Screen('FillRect',w,rectcolor(1,:),bigrect);
                              Screen('FillRect',w,[255 255 0],smallrect);
                     end
-                    Screen('Flip',w,[],2); %usually 2
+                    Screen('Flip',w,[], 2, 0); %usually 2 (what for?), 1 for do not sync
                     WaitSecs(flick_dur); % 8 hz flicker
                     flick = 3-flick;
                     presentations(DynScan,:)= {CurRun,DynScan,RunOrder(DynScan,1),RunOrder(DynScan,2),ShowTime}; 
@@ -191,5 +201,5 @@ save(buttons, 'buttonpress'); %saves the buttonpresses
 save(triggersfile,'triggers'); %saves the list
 
 Screen('CloseAll');
-IOPort('Closeall');
+IOPort('CloseAll');
 cd ..
