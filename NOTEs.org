@@ -1,0 +1,32 @@
+* Design
+** 10 runs: 2w 2r 2w 2r 2w (6 wedges, 4 rings)
+*** 96 TRs, TR 2 sec
+*** 1024x768
+
+*** TODO 'ret mapping' sequence
+** MR sequence details
+*** Michael should have data on hydra
+
+** example README
+
+mih@head1 ~/retmapping_data/31mar10sg % cat README
+31mar10sg_3_1.nii > experiment anatomical
+31mar10sg_4_1.nii > wedge CCW
+31mar10sg_5_1.nii > wedge CW
+31mar10sg_6_1.nii > ring EXP
+31mar10sg_7_1.nii > ring CON
+31mar10sg_8_1.nii > wedge CCW
+31mar10sg_9_1.nii > wedge CW
+31mar10sg_10_1.nii > ring EXP
+31mar10sg_11_1.nii > ring CON
+31mar10sg_12_1.nii > wedge CCW
+31mar10sg_13_1.nii > wedge CW
+
+* Stored data files
+** *_RET_RINGlist.mat -- What is the point of RunOrder containing 0s?
+** *_RET_RINGsequence.mat -- actually containing 
+** *_RET_RINGbuttons.mat 
+
+ - actual button pressed
+*** TODO: record trigger pulses as well
+
