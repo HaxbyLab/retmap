@@ -262,7 +262,7 @@ function RET_localizer(subName, CurRun, listen)
     dt = triggers(2:end)-triggers(1:end-1) - 2;
     fprintf('Post-analysis of triggers delays. Total runtime=%.3f Min=%.3f Max=%.3f\n',
     		tend-t0, min(dt), max(dt));
-    fprintf('Collected %d responses from the subject for %d events',
+    fprintf('Collected %d responses from the subject for %d events\n',
 			length(buttonpress),
 			sum([presentations{:, 4}] == 2));
 end
