@@ -264,5 +264,5 @@ function RET_localizer(subName, CurRun, listen)
     		tend-t0, min(dt), max(dt));
     fprintf('Collected %d responses from the subject for %d events\n',
 			length(buttonpress),
-			sum([presentations{:, 4}] == 2));
+			sum([presentations{:, 4}] ~= 0));
 end
