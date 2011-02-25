@@ -17,23 +17,23 @@ function RET_localizer(subName, CurRun, listen)
     if nargin < 2
       CurRun = str2double(input('Run Number? ','s'));
     end
+    if length(CurRun) < 1; CurRun = 1; end;
     if nargin < 3
-      listen = str2double(input('Listen for scanner [1=yes], 2=no? ','s'));
+      listen = str2double(input('Listen for scanner 1=yes, [2=no]? ','s'));
     end
-    if isnan(listen); listen = 1; end;
+    if isnan(listen); listen = 2; end;
 
-	%% Deduce stimuli WEDGE vs RING
-	stim = {'RING' 'WEDGE'}{mod(ceil(CurRun/2), 2)+1}
+    %% Deduce stimuli WEDGE vs RING
+    tempstim = {'RING' 'WEDGE'};
+    stim = tempstim(mod(ceil(CurRun/2), 2)+1);
 
     % name of data files to save relevant variables
     sequence = sprintf('%s_%d_RET_sequence.mat', subName, CurRun);
     buttons =  sprintf('%s_%d_RET_buttons.mat',subName,CurRun);
     triggersfile =  sprintf('%s_%d_RET_triggers.mat',subName,CurRun);
-    listfile = sprintf('%s_%d_RET_list.mat',subName,CurRun);
 
 %% DECLARE VARIABLES
     DEBUG_PRINTOUTS = 1;
-    TotalPulseTime = [];
     TotalShowTime = [];
     data = [];
     buttonpress = [];
@@ -51,7 +51,7 @@ function RET_localizer(subName, CurRun, listen)
     flicker_freq = 4; % full cycle flicker frequency (Hz)
     flick_dur = 1/flicker_freq/2;
     flick = 1;
-    TR = 2.;
+    TR = 2;
     ScreenNum = max(Screen('Screens'));
 
 %% Initial Screen setup
@@ -92,7 +92,7 @@ function RET_localizer(subName, CurRun, listen)
             masktextures(s)=Screen('MakeTexture', w, circlemask);
         end
 
-	    %% TODO: yoh: Why the same masktextures added multiple times???
+        %% TODO: yoh: Why the same masktextures added multiple times???
         for z=1:repetitions
             param_list = [param_list, masktextures];
         end
@@ -136,10 +136,6 @@ function RET_localizer(subName, CurRun, listen)
     pt=Screen('MakeTexture',w,prompt); %converting image matrix to a texture
     destrect = [x0-xsize, y0-ysize, x0+xsize, y0+ysize];
     Screen('DrawTexture',w,pt,[],destrect);
-    Screen('Flip',w, [], 1);
-    if listen ~= 1
-        WaitSecs(1); %% ONLY FOR DEBUGGING
-    end
 
     %% PRE-PRESENTATION
     if listen == 1
@@ -155,13 +151,16 @@ function RET_localizer(subName, CurRun, listen)
     %% Visualize that we are ready now
     Screen('TextFont', w, 'Arial');
     Screen('TextStyle', w, 0);
-    Screen('DrawText', w, 'Waiting for scanner', 400, 520, 80);
+    Screen('DrawText', w, 'Waiting for scanner', rect(3)*.4, rect(4)*.68, 80); % random position that fits pretty well on my screen
     Screen('Flip', w, [], 2, 1);
-    sprintf('Ready to present subject %s run %d of %s. listen:%d\n',
-			subName, CurRun, stim, listen)
+    if listen == 2
+        WaitSecs(1); %% ONLY FOR DEBUGGING
+    end
+    sprintf('Ready to present subject %s run %d of %s. listen:%d\n', ...
+            subName, CurRun, cell2mat(stim), listen)
 
 % %% IMAGE PRESENTATION
-    NRuns = length(RunOrder)-1
+    NRuns = length(RunOrder)-1;
     while DynScan <= NRuns
         if listen == 1;
             tprev = GetSecs;
@@ -173,7 +172,7 @@ function RET_localizer(subName, CurRun, listen)
             if DEBUG_PRINTOUTS;
                 tnow = GetSecs;
                 navail = IOPort('BytesAvailable', P4);
-                fprintf('%3d Got %c at %.5f. / %.5f waited %.5f avail: %d',
+                fprintf('%3d Got %c at %.5f. / %.5f waited %.5f avail: %d', ...
                         DynScan, pulse, temptime, tnow, tnow - tprev, navail);
                 if length(triggers)>0;
                     fprintf(' dt=%.5f', temptime-triggers(end));
@@ -184,6 +183,7 @@ function RET_localizer(subName, CurRun, listen)
         else
             pulse = 53;
             temptime = GetSecs;
+            t0 = temptime;
         end
         if pulse == 'q'; break; end; % quit if 'q'
         if pulse == 53; %if a pulse has been received from the scanner
@@ -200,7 +200,7 @@ function RET_localizer(subName, CurRun, listen)
                 Screen('Flip', w);
                 presentations(DynScan,:)= {CurRun,DynScan,RunOrder(DynScan,1),RunOrder(DynScan,2),ShowTime};
                 if listen ~= 1 || DynScan == NRuns % So if is the last trial
-                    WaitSecs(1.75); % ONLY FOR DEBUGGING - TO MIMIC SCANNER BEHAVIOR
+                    WaitSecs(2-(GetSecs-temptime)); % ONLY FOR DEBUGGING - TO MIMIC SCANNER BEHAVIOR
                 end
                 DynScan = DynScan + 1;
             else  % PRESENT IMAGE
@@ -220,7 +220,7 @@ function RET_localizer(subName, CurRun, listen)
                     else % RING
                         Screen('DrawTexture', w, RunOrder(DynScan,1));
                     end
-                    %% Distractor
+                    % FIXATION SPOT
                     Screen('FillRect',w,rectcolor(RunOrder(DynScan,2)+1,:),bigrect);
                     Screen('FillRect',w,[255 255 0],smallrect);
                     if num_flick == 1; ShowTime = GetSecs;
@@ -245,7 +245,7 @@ function RET_localizer(subName, CurRun, listen)
             ShowTime = [];
         else
             buttonpress = [buttonpress; pulse, temptime]; % add to buttonpresses
-         end
+        end
     end
 
     tend = GetSecs;
@@ -260,9 +260,9 @@ function RET_localizer(subName, CurRun, listen)
     cd ..
 
     dt = triggers(2:end)-triggers(1:end-1) - 2;
-    fprintf('Post-analysis of triggers delays. Total runtime=%.3f Min=%.3f Max=%.3f\n',
-    		tend-t0, min(dt), max(dt));
+    fprintf('Post-analysis of triggers delays. Total runtime=%.3f Min=%.3f Max=%.3f\n', ...
+            tend-t0, min(dt), max(dt));
     fprintf('Collected %d responses from the subject for %d events\n',
-			length(buttonpress),
-			sum([presentations{:, 4}] ~= 0));
+            length(buttonpress), ...
+            sum([presentations{:, 4}] ~= 0));
 end
